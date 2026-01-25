@@ -43,7 +43,7 @@ export function UserAuthForm({
 
     //开始登录
     const result = await invoke('login', {
-      ...data,
+      body: { ...data },
     });
 
     //登录失败，进行消息提示
