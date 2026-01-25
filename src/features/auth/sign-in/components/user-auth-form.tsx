@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
@@ -19,50 +18,51 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
-
-const formSchema = z.object({
-  email: z.email({
-    error: (iss) => (iss.input === '' ? 'Please enter your email' : undefined),
-  }),
-  password: z
-    .string()
-    .min(1, 'Please enter your password')
-    .min(7, 'Password must be at least 7 characters long'),
-})
-
-interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
-  redirectTo?: string
-}
+import { invoke } from '@tauri-apps/api/core';
 
 export function UserAuthForm({
   className,
   redirectTo,
   ...props
-}: UserAuthFormProps) {
+}) {
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  // Form标签属性
+  const form = useForm({
     defaultValues: {
       email: '',
       password: '',
     },
   })
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
+  // 开始登录
+  async function onSubmit(data) {
     setIsLoading(true)
 
+    //开始登录
+    const result = await invoke('login', {
+      ...data,
+    });
+
+    //登录失败，进行消息提示
+    if(result.status != 200){
+      setIsLoading(false)
+      toast.error(result.data);
+      return;
+    }
+
+    //登录成功，开始跳转
     toast.promise(sleep(2000), {
-      loading: 'Signing in...',
+      loading: '登录成功，开始跳转...',
       success: () => {
         setIsLoading(false)
 
         // Mock successful authentication with expiry computed at success time
         const mockUser = {
           accountNo: 'ACC001',
-          email: data.email,
+          email: data.username,
           role: ['user'],
           exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
         }
@@ -75,7 +75,7 @@ export function UserAuthForm({
         const targetPath = redirectTo || '/'
         navigate({ to: targetPath, replace: true })
 
-        return `Welcome back, ${data.email}!`
+        return `欢迎登陆, ${data.username}!`
       },
       error: 'Error',
     })
@@ -90,12 +90,12 @@ export function UserAuthForm({
       >
         <FormField
           control={form.control}
-          name='email'
+          name='username'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>账号</FormLabel>
               <FormControl>
-                <Input placeholder='name@example.com' {...field} />
+                <Input placeholder='请输入账号' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -106,44 +106,18 @@ export function UserAuthForm({
           name='password'
           render={({ field }) => (
             <FormItem className='relative'>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>密码</FormLabel>
               <FormControl>
-                <PasswordInput placeholder='********' {...field} />
+                <PasswordInput placeholder='请输入密码' {...field} />
               </FormControl>
               <FormMessage />
-              <Link
-                to='/forgot-password'
-                className='absolute end-0 -top-0.5 text-sm font-medium text-muted-foreground hover:opacity-75'
-              >
-                Forgot password?
-              </Link>
             </FormItem>
           )}
         />
         <Button className='mt-2' disabled={isLoading}>
           {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-          Sign in
+          登&nbsp;&nbsp;录
         </Button>
-
-        <div className='relative my-2'>
-          <div className='absolute inset-0 flex items-center'>
-            <span className='w-full border-t' />
-          </div>
-          <div className='relative flex justify-center text-xs uppercase'>
-            <span className='bg-background px-2 text-muted-foreground'>
-              Or continue with
-            </span>
-          </div>
-        </div>
-
-        <div className='grid grid-cols-2 gap-2'>
-          <Button variant='outline' type='button' disabled={isLoading}>
-            <IconGithub className='h-4 w-4' /> GitHub
-          </Button>
-          <Button variant='outline' type='button' disabled={isLoading}>
-            <IconFacebook className='h-4 w-4' /> Facebook
-          </Button>
-        </div>
       </form>
     </Form>
   )
